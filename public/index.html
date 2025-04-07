@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MRC Web Renderer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            max-width: 300px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        #fileInput {
+            display: none;
+        }
+        .file-upload-btn {
+            background: #2196F3;
+        }
+        .file-upload-btn:hover {
+            background: #0b7dda;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="controls">
+        <div class="control-group">
+            <input type="file" id="fileInput" accept=".mrc">
+            <button class="file-upload-btn" onclick="document.getElementById('fileInput').click()">Choose MRC File</button>
+        </div>
+        <div class="control-group">
+            <label>View Mode:</label>
+            <select id="viewMode">
+                <option value="volume">Volume</option>
+                <option value="slice">Slice</option>
+            </select>
+        </div>
+        <div class="control-group" id="sliceControls">
+            <label>Slice Axis:</label>
+            <select id="sliceAxis">
+                <option value="x">X</option>
+                <option value="y">Y</option>
+                <option value="z">Z</option>
+            </select>
+            <label>Slice Position:</label>
+            <input type="range" id="slicePosition" min="0" max="100" value="50">
+            <button id="playPause">Play</button>
+        </div>
+        <div class="control-group">
+            <label>Contrast Window:</label>
+            <input type="range" id="contrastWindow" min="0" max="255" value="128">
+            <label>Contrast Level:</label>
+            <input type="range" id="contrastLevel" min="0" max="255" value="128">
+        </div>
+        <div class="control-group">
+            <label>Volume Opacity:</label>
+            <input type="range" id="volumeOpacity" min="0" max="1" step="0.1" value="0.5">
+        </div>
+        <button id="resetCamera">Reset Camera</button>
+    </div>
+</body>
+</html> 
