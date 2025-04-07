@@ -77,18 +77,45 @@
             <label>View Mode:</label>
             <select id="viewMode">
                 <option value="volume">Volume</option>
-                <option value="slice">Slice</option>
+                <option value="slice">Single Slice</option>
+                <option value="orthogonal">Orthogonal Slices</option>
             </select>
         </div>
-        <div class="control-group" id="sliceControls">
-            <label>Slice Axis:</label>
-            <select id="sliceAxis">
-                <option value="x">X</option>
-                <option value="y">Y</option>
-                <option value="z">Z</option>
+        <div class="control-group" id="singleSliceControls">
+            <label>Slice View:</label>
+            <select id="sliceView">
+                <option value="xy">Front (XY)</option>
+                <option value="yz">Side (YZ)</option>
+                <option value="xz">Top (XZ)</option>
             </select>
             <label>Slice Position:</label>
-            <input type="range" id="slicePosition" min="0" max="100" value="50">
+            <div style="display: flex; align-items: center;">
+                <input type="range" id="singleSlicePosition" min="0" max="100" value="50">
+                <span id="singleSlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
+            </div>
+        </div>
+        <div class="control-group" id="orthogonalSliceControls">
+            <div id="xySliceControls" class="slice-control-group">
+                <label>XY Slice Position:</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="xySlicePosition" min="0" max="100" value="50">
+                    <span id="xySlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
+                </div>
+            </div>
+            <div id="yzSliceControls" class="slice-control-group">
+                <label>YZ Slice Position:</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="yzSlicePosition" min="0" max="100" value="50">
+                    <span id="yzSlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
+                </div>
+            </div>
+            <div id="xzSliceControls" class="slice-control-group">
+                <label>XZ Slice Position:</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="xzSlicePosition" min="0" max="100" value="50">
+                    <span id="xzSlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
+                </div>
+            </div>
             <button id="playPause">Play</button>
         </div>
         <div class="control-group">

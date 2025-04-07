@@ -34,45 +34,120 @@ fileInput.addEventListener('change', async (event) => {
 // View mode controls
 const viewModeSelect = document.getElementById('viewMode') as HTMLSelectElement;
 viewModeSelect.addEventListener('change', () => {
-    viewer.setViewMode(viewModeSelect.value as 'volume' | 'slice');
+    const mode = viewModeSelect.value as 'volume' | 'slice' | 'orthogonal';
+    viewer.setViewMode(mode);
+    
+    // Show/hide appropriate controls
+    const singleSliceControls = document.getElementById('singleSliceControls') as HTMLElement;
+    const orthogonalSliceControls = document.getElementById('orthogonalSliceControls') as HTMLElement;
+    
+    if (mode === 'slice') {
+        singleSliceControls.style.display = 'block';
+        orthogonalSliceControls.style.display = 'none';
+    } else if (mode === 'orthogonal') {
+        singleSliceControls.style.display = 'none';
+        orthogonalSliceControls.style.display = 'block';
+    } else {
+        singleSliceControls.style.display = 'none';
+        orthogonalSliceControls.style.display = 'none';
+    }
 });
+
+// Single slice controls
+const sliceViewSelect = document.getElementById('sliceView') as HTMLSelectElement;
+const singleSlicePositionInput = document.getElementById('singleSlicePosition') as HTMLInputElement;
+
+// Get value label elements
+const singleSlicePositionValue = document.getElementById('singleSlicePositionValue') as HTMLSpanElement;
+
+sliceViewSelect.addEventListener('change', () => {
+    viewer.setSingleSliceView(sliceViewSelect.value as 'xy' | 'yz' | 'xz');
+    if (maxSliceIndices) {
+        updateSingleSliceControls();
+    }
+});
+
+singleSlicePositionInput.addEventListener('input', () => {
+    singleSlicePositionValue.textContent = singleSlicePositionInput.value;
+    viewer.setSingleSliceIndex(parseInt(singleSlicePositionInput.value));
+});
+
+function updateSingleSliceControls() {
+    const currentView = sliceViewSelect.value as 'xy' | 'yz' | 'xz';
+    singleSlicePositionInput.max = maxSliceIndices[currentView].toString();
+    const centerValue = Math.floor(parseInt(singleSlicePositionInput.max) / 2).toString();
+    singleSlicePositionInput.value = centerValue;
+    singleSlicePositionValue.textContent = centerValue;
+}
 
 // Slice controls
-const sliceAxisSelect = document.getElementById('sliceAxis') as HTMLSelectElement;
-const slicePositionInput = document.getElementById('slicePosition') as HTMLInputElement;
+const xySlicePositionInput = document.getElementById('xySlicePosition') as HTMLInputElement;
+const yzSlicePositionInput = document.getElementById('yzSlicePosition') as HTMLInputElement;
+const xzSlicePositionInput = document.getElementById('xzSlicePosition') as HTMLInputElement;
 const playPauseButton = document.getElementById('playPause') as HTMLButtonElement;
 
-let maxSliceIndex = 0;
+// Get value label elements
+const xySlicePositionValue = document.getElementById('xySlicePositionValue') as HTMLSpanElement;
+const yzSlicePositionValue = document.getElementById('yzSlicePositionValue') as HTMLSpanElement;
+const xzSlicePositionValue = document.getElementById('xzSlicePositionValue') as HTMLSpanElement;
+
+let maxSliceIndices = {
+    xy: 0,
+    yz: 0,
+    xz: 0
+};
 
 function updateSliceControls(metadata: any) {
-    maxSliceIndex = metadata.dimensions[getAxisIndex()] - 1;
-    slicePositionInput.max = maxSliceIndex.toString();
-    slicePositionInput.value = '0';
+    maxSliceIndices = {
+        xy: metadata.dimensions[2] - 1, // z-axis
+        yz: metadata.dimensions[0] - 1, // x-axis
+        xz: metadata.dimensions[1] - 1  // y-axis
+    };
+
+    // Calculate center positions
+    const centerPositions = {
+        xy: Math.floor(metadata.dimensions[2] / 2), // z-axis center
+        yz: Math.floor(metadata.dimensions[0] / 2), // x-axis center
+        xz: Math.floor(metadata.dimensions[1] / 2)  // y-axis center
+    };
+
+    // Update orthogonal slice controls
+    xySlicePositionInput.max = maxSliceIndices.xy.toString();
+    yzSlicePositionInput.max = maxSliceIndices.yz.toString();
+    xzSlicePositionInput.max = maxSliceIndices.xz.toString();
+
+    // Set initial positions to center and update value labels
+    xySlicePositionInput.value = centerPositions.xy.toString();
+    xySlicePositionValue.textContent = centerPositions.xy.toString();
+    
+    yzSlicePositionInput.value = centerPositions.yz.toString();
+    yzSlicePositionValue.textContent = centerPositions.yz.toString();
+    
+    xzSlicePositionInput.value = centerPositions.xz.toString();
+    xzSlicePositionValue.textContent = centerPositions.xz.toString();
+
+    // Update single slice controls
+    updateSingleSliceControls();
 }
 
-function getAxisIndex(): number {
-    switch (sliceAxisSelect.value) {
-        case 'x': return 0;
-        case 'y': return 1;
-        case 'z': return 2;
-        default: return 2;
-    }
-}
-
-sliceAxisSelect.addEventListener('change', () => {
-    viewer.setSliceAxis(sliceAxisSelect.value as 'x' | 'y' | 'z');
-    if (maxSliceIndex > 0) {
-        updateSliceControls({ dimensions: [maxSliceIndex + 1, maxSliceIndex + 1, maxSliceIndex + 1] });
-    }
+xySlicePositionInput.addEventListener('input', () => {
+    xySlicePositionValue.textContent = xySlicePositionInput.value;
+    viewer.setSliceIndex('xy', parseInt(xySlicePositionInput.value));
 });
 
-slicePositionInput.addEventListener('input', () => {
-    viewer.setSliceIndex(parseInt(slicePositionInput.value));
+yzSlicePositionInput.addEventListener('input', () => {
+    yzSlicePositionValue.textContent = yzSlicePositionInput.value;
+    viewer.setSliceIndex('yz', parseInt(yzSlicePositionInput.value));
+});
+
+xzSlicePositionInput.addEventListener('input', () => {
+    xzSlicePositionValue.textContent = xzSlicePositionInput.value;
+    viewer.setSliceIndex('xz', parseInt(xzSlicePositionInput.value));
 });
 
 playPauseButton.addEventListener('click', () => {
     viewer.togglePlay();
-    playPauseButton.textContent = playPauseButton.textContent === 'Play' ? 'Pause' : 'Play';
+    playPauseButton.textContent = viewer.playing ? 'Pause' : 'Play';
 });
 
 // Contrast controls
