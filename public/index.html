@@ -244,19 +244,17 @@
                  <button id="centerSlice">Center Slice</button>
             </div>
 
-             <div class="control-group" id="zProjectionGroup">
-                <h3>Z-Projection</h3>
-                 <div class="control-row">
-                    <input type="checkbox" id="zProjection">
-                    <label for="zProjection">Enable</label>
-                 </div>
-                 <div class="control-row">
-                    <label for="sumValue">Sum:</label>
-                    <input type="number" class="small-input" id="sumValue" value="1" min="1" max="100">
-                 </div>
+            <div class="control-group">
+                <h3>Mouse Controls</h3>
+                <p style="font-size: 0.9em; color: var(--text-dark); margin-bottom: 5px;">
+                    - <strong>Pan:</strong> Click and drag with the <strong>middle mouse button</strong> within any view panel (XY, XZ, YZ) to translate the slice.
+                </p>
+                <p style="font-size: 0.9em; color: var(--text-dark); margin-bottom: 5px;">
+                    - <strong>Zoom:</strong> Click and drag with the <strong>right mouse button</strong> within any view panel to zoom in or out.
+                </p>
             </div>
 
-            <div class="control-group">
+             <div class="control-group">
                 <h3>Slice Navigation</h3>
                 <div class="control-row">
                     <label for="xSlider">X:</label>
@@ -270,7 +268,6 @@
                 <div class="control-row">
                     <label for="zSlider">Z:</label>
                     <input type="range" id="zSlider" min="0" max="100" value="50">
-                    <button id="stepRight" class="icon-button" title="Step Right →">Z+</button> <!-- Text instead of arrow for now -->
                     <!-- Add Z- button if needed -->
                 </div>
             </div>
