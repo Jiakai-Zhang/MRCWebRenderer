@@ -75,17 +75,22 @@ git clone https://github.com/yourusername/MRCWebRenderer.git
 cd MRCWebRenderer
 ```
 
-2. Install dependencies:
+2. Install global dependencies (if needed):
+```bash
+sudo npm install -g itk-wasm
+```
+
+3. Install project dependencies:
 ```bash
 npm install
 ```
 
-3. Start the development server:
+4. Start the development server:
 ```bash
 npm start
 ```
 
-4. Build for production:
+5. Build for production:
 ```bash
 npm run build
 ```
