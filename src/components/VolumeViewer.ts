@@ -10,6 +10,7 @@ import { VolumeMetadata } from '../utils/mrcUtils';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator';
+import { calculateContrastNormalization } from '../utils/imageProcessing';
 
 // Removed incorrect/duplicate imports from previous attempts
 
@@ -35,6 +36,7 @@ export class VolumeViewer {
     private zProjection: boolean = false;
     private sumValue: number = 1;
     private crosshairElements: {[key: string]: {horizontal: HTMLElement, vertical: HTMLElement}} = {};
+    private baseParallelScale: number = 1.0; // Added for global zoom
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -154,11 +156,7 @@ export class VolumeViewer {
             const sliceActor = vtkImageSlice.newInstance();
             sliceActor.setMapper(sliceMapper);
 
-            // Set initial contrast
-            const window = dataRange[1] - dataRange[0];
-            const level = (dataRange[0] + dataRange[1]) / 2;
-            sliceActor.getProperty().setColorWindow(window);
-            sliceActor.getProperty().setColorLevel(level);
+            // Defer setting contrast until after all actors are added and normalization is calculated
 
             // Store the mapper and actor directly by view name
             this.sliceMappers[viewName] = sliceMapper;
@@ -166,6 +164,19 @@ export class VolumeViewer {
 
             // Add to the correct renderer
             this.renderers[viewName].addActor(sliceActor);
+        });
+
+        // Calculate contrast normalization after image data is processed by VTK
+        const { vmin, vmax } = calculateContrastNormalization(this.vtkImage);
+        const initialWindow = vmax - vmin;
+        const initialLevel = (vmax + vmin) / 2;
+
+        // Apply the calculated contrast to all slice actors
+        Object.values(this.sliceActors).forEach(actor => {
+            if (actor) {
+                actor.getProperty().setColorWindow(initialWindow);
+                actor.getProperty().setColorLevel(initialLevel);
+            }
         });
 
         // Set up orthogonal views
@@ -209,6 +220,7 @@ export class VolumeViewer {
         // YZ slice height is worldDimZ
         const maxSliceHeight = Math.max(worldDimY, worldDimZ);
         const parallelScale = maxSliceHeight / 2; // Use half-height for parallelScale
+        this.baseParallelScale = parallelScale; // Store the base scale
 
         // Calculate a fallback camera distance if needed (e.g., for perspective)
         const maxDim = Math.max(worldDimX, worldDimY, worldDimZ);
@@ -234,13 +246,16 @@ export class VolumeViewer {
         yzCamera.setParallelProjection(true);
         yzCamera.setPosition(bounds.xMax + maxDim, center[1], center[2]); // Position away along X
         yzCamera.setFocalPoint(center[0], center[1], center[2]);
-        yzCamera.setViewUp(0, 0, 1); // View Up along Z for YZ slice
+        yzCamera.setViewUp(0, 1, 0); // View Up along Y for 90-degree CCW rotation
         yzCamera.setParallelScale(parallelScale); // Set calculated scale
 
         // Reset cameras and render
         Object.values(this.renderers).forEach(renderer => {
             renderer.resetCamera();
         });
+
+        // Apply initial zoom level after setting base scale
+        this.setZoomLevel(this.zoomLevel);
 
         this.renderAllViews();
     }
@@ -280,12 +295,18 @@ export class VolumeViewer {
     }
 
     public setZoomLevel(level: number) {
-        this.zoomLevel = level;
+        this.zoomLevel = Math.max(0.1, level); // Ensure zoom level is positive
+        const actualScale = this.baseParallelScale / this.zoomLevel;
+
+        // Apply the same scale to all orthogonal cameras
         Object.values(this.renderers).forEach(renderer => {
             const camera = renderer.getActiveCamera();
-            const currentScale = camera.getParallelScale();
-            camera.setParallelScale(currentScale / level);
+            if (camera && camera.getParallelProjection()) {
+                camera.setParallelScale(actualScale);
+            }
         });
+
+        this.updateCrosshairs(); // Update crosshair size/position relative to zoom
         this.renderAllViews();
     }
 
@@ -382,5 +403,26 @@ export class VolumeViewer {
         Object.values(this.renderWindows).forEach(renderWindow => {
             renderWindow.delete();
         });
+    }
+
+    /**
+     * Gets the current contrast window and level settings.
+     * Assumes all slice actors have the same settings.
+     * Returns null if no volume/actors are loaded.
+     */
+    public getContrastSettings(): { window: number, level: number } | null {
+        // Find the first valid slice actor to get properties from
+        const firstActorKey = Object.keys(this.sliceActors).find(key => this.sliceActors[key]);
+        const firstActor = firstActorKey ? this.sliceActors[firstActorKey] : null;
+
+        if (firstActor) {
+            const prop = firstActor.getProperty();
+            return {
+                window: prop.getColorWindow(),
+                level: prop.getColorLevel(),
+            };
+        } else {
+            return null;
+        }
     }
 } 

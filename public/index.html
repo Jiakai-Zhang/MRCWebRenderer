@@ -5,97 +5,101 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MRC Web Renderer</title>
     <style>
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-medium: #2a2a3e;
+            --bg-light: #3a3a4e;
+            --text-light: #e0e0e0;
+            --text-dark: #b0b0b0;
+            --accent-primary: #4CAF50;
+            --accent-primary-hover: #45a049;
+            --accent-secondary: #2196F3;
+            --accent-secondary-hover: #0b7dda;
+            --border-color: #444;
+            --input-bg: #1e1e1e;
+            --panel-bg: #000000; /* Black for view panels */
+            --crosshair-color: yellow;
+            --border-xy: #ff0000;
+            --border-xz: #00ff00;
+            --border-yz: #0000ff;
+        }
+
         body {
             margin: 0;
             padding: 0;
             width: 100vw;
             height: 100vh;
             display: flex;
-            flex-direction: column;
+            flex-direction: column; /* Keep body as flex column if needed, but container handles main layout */
             overflow: hidden;
-            font-family: Arial, sans-serif;
-            background: #1a1a2e;  /* Dark navy background */
-            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            font-size: 14px;
         }
+
         #container {
             flex: 1;
             display: flex;
+            overflow: hidden;
+            min-height: 0; /* Needed for flex children overflow */
+        }
+
+        #sidebar {
+            width: 280px;
+            background: var(--bg-medium);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            overflow-y: auto;
+            gap: 20px; /* Space between control groups */
+        }
+
+        #viewer-area {
+            flex: 1;
+            display: flex;
             flex-direction: column;
             overflow: hidden;
-            min-height: 0;
-            background: #1a1a2e;
+            min-width: 0; /* Needed for flex children overflow */
         }
-        #top-toolbar {
-            height: 40px;
-            background: #2a2a3e;  /* Slightly lighter navy */
-            border-bottom: 1px solid #3a3a4e;
-            display: flex;
-            align-items: center;
-            padding: 0 10px;
-            gap: 10px;
-        }
-        .toolbar-group {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            padding: 0 10px;
-            border-right: 1px solid #3a3a4e;
-        }
-        .toolbar-group:last-child {
-            border-right: none;
-        }
-        .toolbar-input {
-            width: 60px;
-            padding: 4px;
-            background: #1a1a2e;
-            border: 1px solid #3a3a4e;
-            color: #ffffff;
-            border-radius: 4px;
-        }
-        .toolbar-button {
-            background: none;
-            border: none;
-            color: #ffffff;
-            cursor: pointer;
-            padding: 5px;
-            border-radius: 4px;
-        }
-        .toolbar-button:hover {
-            background: #404040;
-        }
-        .toolbar-button.active {
-            background: #4CAF50;
-        }
+
         #viewer-layout {
             flex: 1;
             display: grid;
-            grid-template-columns: 4fr 1fr;
-            grid-template-rows: 200px 2fr;
-            gap: 1px;
-            padding: 1px;
-            background: #1a1a2e;
-            min-height: 0;
+            grid-template-columns: 4fr 1fr; /* Kept original ratio */
+            grid-template-rows: 200px 1fr; /* Adjusted row definition */
+            gap: 2px; /* Slightly increased gap */
+            padding: 2px;
+            background: var(--bg-dark);
+            min-height: 0; /* Important for grid children sizing */
+            border: 1px solid var(--border-color); /* Add subtle border */
         }
+
         .view-panel {
-            background: #000000;  /* Black background for image panels */
+            background: var(--panel-bg);
             overflow: hidden;
             position: relative;
+            border: 1px solid var(--border-color); /* Use consistent border color */
         }
+
+        /* Specific view borders for identification */
         #xy-view {
             grid-column: 1 / 2;
             grid-row: 1 / 2;
-            border: 1px solid #ff0000;
+            /* border-color: var(--border-xy); Optional: keep original colors if preferred */
         }
         #xz-view {
             grid-column: 1 / 2;
             grid-row: 2 / 3;
-            border: 1px solid #00ff00;
+            /* border-color: var(--border-xz); */
         }
         #yz-view {
             grid-column: 2 / 3;
             grid-row: 2 / 3;
-            border: 1px solid #0000ff;
+            /* border-color: var(--border-yz); */
         }
+
         .crosshair {
             position: absolute;
             pointer-events: none;
@@ -104,133 +108,210 @@
         .crosshair-horizontal {
             width: 100%;
             height: 1px;
-            background: yellow;
+            background: var(--crosshair-color);
             top: 50%;
             left: 0;
         }
         .crosshair-vertical {
             width: 1px;
             height: 100%;
-            background: yellow;
+            background: var(--crosshair-color);
             left: 50%;
             top: 0;
         }
-        #controls {
-            background: #2a2a3e;
-            padding: 8px;
-            border-top: 1px solid #3a3a4e;
-            max-height: 200px;
-            overflow-y: auto;
-        }
+
+        /* --- Sidebar Control Styling --- */
         .control-group {
-            margin-bottom: 10px;
+            background: var(--bg-light);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
         }
+
+        .control-group h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1em;
+            color: var(--text-light);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
+
         .control-group label {
             display: block;
             margin-bottom: 5px;
+            color: var(--text-dark);
+            font-size: 0.9em;
         }
-        .control-group input[type="range"] {
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .control-row label {
+            margin-bottom: 0; /* Reset margin for inline labels */
+            flex-shrink: 0; /* Prevent label from shrinking */
+            width: 70px; /* Align labels */
+        }
+        .control-row input[type="number"],
+        .control-row input[type="checkbox"] {
+            margin-right: 5px; /* Space between checkbox and its label if needed */
+        }
+
+        input[type="range"] {
             width: 100%;
+            cursor: pointer;
+            margin-top: 2px;
+            margin-bottom: 2px;
         }
+        input[type="number"],
+        select {
+            padding: 6px 8px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        input[type="number"].small-input {
+             width: 60px; /* Consistent small input width */
+        }
+
         button {
-            background: #4CAF50;
+            background: var(--accent-primary);
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 8px 12px;
             border-radius: 4px;
             cursor: pointer;
-            margin-right: 5px;
+            font-size: 0.9em;
+            transition: background-color 0.2s ease;
+            width: 100%; /* Make buttons fill width by default */
+            margin-top: 5px; /* Add some space above buttons */
         }
         button:hover {
-            background: #45a049;
+            background: var(--accent-primary-hover);
         }
-        select {
-            width: 100%;
-            padding: 8px;
-            border-radius: 4px;
-            margin-bottom: 10px;
-            background: #1e1e1e;
-            color: #ffffff;
-            border: 1px solid #404040;
+        button.secondary {
+            background: var(--accent-secondary);
         }
+        button.secondary:hover {
+            background: var(--accent-secondary-hover);
+        }
+        button.icon-button { /* Style for potential icon buttons */
+            width: auto;
+            padding: 5px 8px;
+        }
+
         #fileInput {
             display: none;
         }
-        .file-upload-btn {
-            background: #2196F3;
+
+        .value-display {
+            display: block;
+            margin-top: 2px;
+            font-size: 0.8em;
+            color: var(--text-dark);
         }
-        .file-upload-btn:hover {
-            background: #0b7dda;
+
+        /* Specific Adjustments */
+        #zProjectionGroup label[for="zProjection"] { /* Ensure label is clickable */
+            cursor: pointer;
         }
+
     </style>
 </head>
 <body>
     <div id="container">
-        <div id="top-toolbar">
-            <div class="toolbar-group">
-                <button class="toolbar-button" id="view3D" title="3D View">3D</button>
+        <div id="sidebar">
+            <div class="control-group">
+                <h3>File</h3>
+                <input type="file" id="fileInput" accept=".mrc">
+                <button class="secondary" onclick="document.getElementById('fileInput').click()">Choose MRC File</button>
             </div>
-            <div class="toolbar-group">
-                <input type="number" class="toolbar-input" id="zoomLevel" value="1.00" step="0.01" min="0.1" max="10">
+
+            <div class="control-group">
+                <h3>View Controls</h3>
+                <div class="control-row">
+                     <label for="zoomLevel">Zoom:</label>
+                     <input type="number" class="small-input" id="zoomLevel" value="1.00" step="0.01" min="0.1" max="10">
+                </div>
+                 <button id="view3D" class="icon-button" title="3D View">3D View</button> <!-- Consider icon later -->
+                 <button id="togglePattern" class="icon-button" title="Toggle Pattern">Toggle Grid</button>
+                 <button id="resetCamera">Reset Camera</button>
+                 <button id="centerSlice">Center Slice</button>
             </div>
-            <div class="toolbar-group">
-                <button class="toolbar-button" id="togglePattern" title="Toggle Pattern">Grid</button>
+
+             <div class="control-group" id="zProjectionGroup">
+                <h3>Z-Projection</h3>
+                 <div class="control-row">
+                    <input type="checkbox" id="zProjection">
+                    <label for="zProjection">Enable</label>
+                 </div>
+                 <div class="control-row">
+                    <label for="sumValue">Sum:</label>
+                    <input type="number" class="small-input" id="sumValue" value="1" min="1" max="100">
+                 </div>
             </div>
-            <div class="toolbar-group">
-                <input type="checkbox" id="zProjection">
-                <label for="zProjection">Z-Projection</label>
-                <input type="number" class="toolbar-input" id="sumValue" value="1" min="1" max="100">
+
+            <div class="control-group">
+                <h3>Slice Navigation</h3>
+                <div class="control-row">
+                    <label for="xSlider">X:</label>
+                    <input type="range" id="xSlider" min="0" max="100" value="50">
+                    <!-- Optional: Add value display -->
+                </div>
+                <div class="control-row">
+                    <label for="ySlider">Y:</label>
+                    <input type="range" id="ySlider" min="0" max="100" value="50">
+                </div>
+                <div class="control-row">
+                    <label for="zSlider">Z:</label>
+                    <input type="range" id="zSlider" min="0" max="100" value="50">
+                    <button id="stepRight" class="icon-button" title="Step Right →">Z+</button> <!-- Text instead of arrow for now -->
+                    <!-- Add Z- button if needed -->
+                </div>
             </div>
-            <div class="toolbar-group">
-                <label>X:</label>
-                <input type="range" id="xSlider" min="0" max="100" value="50">
-            </div>
-            <div class="toolbar-group">
-                <label>Y:</label>
-                <input type="range" id="ySlider" min="0" max="100" value="50">
-            </div>
-            <div class="toolbar-group">
-                <label>Z:</label>
-                <input type="range" id="zSlider" min="0" max="100" value="50">
-            </div>
-            <div class="toolbar-group">
-                <button class="toolbar-button" id="stepRight" title="Step Right">→</button>
+
+            <div class="control-group">
+                <h3>Contrast</h3>
+                <label for="contrastWindow">Window:</label>
+                <input type="range" id="contrastWindow" min="0" max="255" value="128">
+                <span id="contrastWindowValue" class="value-display">Value: 128</span>
+                <span id="contrastWindowRange" class="value-display">Range: [0, 255]</span>
+
+                <label for="contrastLevel" style="margin-top: 10px;">Level:</label>
+                <input type="range" id="contrastLevel" min="0" max="255" value="128">
+                <span id="contrastLevelValue" class="value-display">Value: 128</span>
+                <span id="contrastLevelRange" class="value-display">Range: [0, 255]</span>
             </div>
         </div>
-        <div id="viewer-layout">
-            <div id="xy-view" class="view-panel">
-                <div class="crosshair crosshair-horizontal"></div>
-                <div class="crosshair crosshair-vertical"></div>
-            </div>
-            <div id="xz-view" class="view-panel">
-                <div class="crosshair crosshair-horizontal"></div>
-                <div class="crosshair crosshair-vertical"></div>
-            </div>
-            <div id="yz-view" class="view-panel">
-                <div class="crosshair crosshair-horizontal"></div>
-                <div class="crosshair crosshair-vertical"></div>
+
+        <div id="viewer-area">
+             <!-- Top toolbar could potentially go here if needed in the future -->
+             <!-- <div id="top-viewer-toolbar"> ... </div> -->
+            <div id="viewer-layout">
+                <div id="xy-view" class="view-panel">
+                    <div class="crosshair crosshair-horizontal"></div>
+                    <div class="crosshair crosshair-vertical"></div>
+                </div>
+                <div id="xz-view" class="view-panel">
+                    <div class="crosshair crosshair-horizontal"></div>
+                    <div class="crosshair crosshair-vertical"></div>
+                </div>
+                <div id="yz-view" class="view-panel">
+                    <div class="crosshair crosshair-horizontal"></div>
+                    <div class="crosshair crosshair-vertical"></div>
+                </div>
+                 <!-- Potential 3D view panel could go here, initially hidden -->
+                 <!-- <div id="3d-view" class="view-panel" style="grid-column: 1 / 3; grid-row: 1 / 3; display: none;"></div> -->
             </div>
         </div>
     </div>
-    <div id="controls">
-        <div class="control-group">
-            <input type="file" id="fileInput" accept=".mrc">
-            <button class="file-upload-btn" onclick="document.getElementById('fileInput').click()">Choose MRC File</button>
-        </div>
-        <div class="control-group">
-            <label>Contrast Window:</label>
-            <input type="range" id="contrastWindow" min="0" max="255" value="128">
-            <label>Contrast Level:</label>
-            <input type="range" id="contrastLevel" min="0" max="255" value="128">
-        </div>
-        <div class="control-group">
-            <label>Volume Opacity:</label>
-            <input type="range" id="volumeOpacity" min="0" max="1" step="0.1" value="0.5">
-        </div>
-        <div class="control-group">
-            <button id="resetCamera">Reset Camera</button>
-            <button id="centerSlice">Center Slice</button>
-        </div>
-    </div>
+
+    <!-- Potentially move script includes here -->
+    <!-- <script src="app.js"></script> -->
 </body>
 </html> 

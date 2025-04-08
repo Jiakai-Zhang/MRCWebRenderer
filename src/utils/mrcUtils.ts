@@ -84,10 +84,6 @@ export async function loadMRCFile(file: File): Promise<{ imageData: any; metadat
             throw new Error(`Invalid dimensions in MRC header: nx=${header.nx}, ny=${header.ny}, nz=${header.nz}`);
         }
 
-        if (header.mode !== 0 && header.mode !== 1 && header.mode !== 2) {
-            throw new Error(`Unsupported MRC mode: ${header.mode}. Supported modes are 0 (8-bit), 1 (16-bit), or 2 (32-bit float)`);
-        }
-
         // Calculate dimensions and spacing
         const dimensions: [number, number, number] = [header.nx, header.ny, header.nz];
         const spacing: [number, number, number] = [
@@ -125,15 +121,55 @@ export async function loadMRCFile(file: File): Promise<{ imageData: any; metadat
 
         try {
             switch (header.mode) {
-                case 0: // 8-bit signed integer
-                    data = new Uint8Array(new Int8Array(arrayBuffer, dataOffset, expectedDataSize));
+                case 0: { // 8-bit signed integer
+                    const int8Data = new Int8Array(arrayBuffer, dataOffset, expectedDataSize);
+                    data = new Float32Array(expectedDataSize);
+                    for (let i = 0; i < expectedDataSize; i++) {
+                        data[i] = int8Data[i];
+                    }
                     break;
-                case 1: // 16-bit signed integer
-                    data = new Uint8Array(new Int16Array(arrayBuffer, dataOffset, expectedDataSize));
+                }
+                case 1: { // 16-bit signed integer
+                    const int16Data = new Int16Array(arrayBuffer, dataOffset, expectedDataSize);
+                    data = new Float32Array(expectedDataSize);
+                    for (let i = 0; i < expectedDataSize; i++) {
+                        data[i] = int16Data[i];
+                    }
                     break;
+                }
                 case 2: // 32-bit float
                     data = new Float32Array(arrayBuffer, dataOffset, expectedDataSize);
                     break;
+                case 3: { // 16-bit complex (2 shorts)
+                    const complexData = new Int16Array(arrayBuffer, dataOffset, expectedDataSize * 2);
+                    data = new Float32Array(expectedDataSize);
+                    for (let i = 0; i < expectedDataSize; i++) {
+                        // Take magnitude of complex number
+                        const real = complexData[i * 2];
+                        const imag = complexData[i * 2 + 1];
+                        data[i] = Math.sqrt(real * real + imag * imag);
+                    }
+                    break;
+                }
+                case 4: { // 32-bit complex (2 floats) 
+                    const complexData = new Float32Array(arrayBuffer, dataOffset, expectedDataSize * 2);
+                    data = new Float32Array(expectedDataSize);
+                    for (let i = 0; i < expectedDataSize; i++) {
+                        // Take magnitude of complex number
+                        const real = complexData[i * 2];
+                        const imag = complexData[i * 2 + 1];
+                        data[i] = Math.sqrt(real * real + imag * imag);
+                    }
+                    break;
+                }
+                case 6: { // 16-bit unsigned integer
+                    const uint16Data = new Uint16Array(arrayBuffer, dataOffset, expectedDataSize);
+                    data = new Float32Array(expectedDataSize);
+                    for (let i = 0; i < expectedDataSize; i++) {
+                        data[i] = uint16Data[i];
+                    }
+                    break;
+                }
                 default:
                     throw new Error(`Unsupported MRC mode: ${header.mode}`);
             }
