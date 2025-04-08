@@ -1,19 +1,25 @@
-import * as vtkFullScreenRenderWindow from '@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow';
+import * as vtkGenericRenderWindow from '@kitware/vtk.js/Rendering/Misc/GenericRenderWindow';
 import * as vtkVolume from '@kitware/vtk.js/Rendering/Core/Volume';
 import * as vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
 import * as vtkImageSlice from '@kitware/vtk.js/Rendering/Core/ImageSlice';
-import * as vtkImageResliceMapper from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper';
+import * as vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import * as vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
 import * as vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import * as vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import { VolumeMetadata } from '../utils/mrcUtils';
+import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
+import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
+import vtkMouseCameraTrackballZoomManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator';
+
+// Removed incorrect/duplicate imports from previous attempts
 
 export class VolumeViewer {
-    private renderWindow: any;
-    private renderer: any;
-    private volumeActor: any;
-    private sliceActors: { [key: string]: any } = {};
-    private sliceMappers: { [key: string]: any } = {};
+    private renderWindows: {[key: string]: any} = {};
+    private renderers: {[key: string]: any} = {};
+    // Use correct type for sliceActors
+    private sliceActors: { [view: string]: vtkImageSlice.vtkImageSlice } = {};
+    // Use any for sliceMappers type for now
+    private sliceMappers: { [view: string]: any } = {};
     private vtkImage: any;
     private metadata: VolumeMetadata | null = null;
     private isPlaying: boolean = false;
@@ -24,324 +30,357 @@ export class VolumeViewer {
         xz: 0
     };
     private container: HTMLElement;
-    private viewMode: 'volume' | 'slice' | 'orthogonal' = 'volume';
-    private currentSingleSliceView: 'xy' | 'yz' | 'xz' = 'xy';
+    private zoomLevel: number = 1.0;
+    private showPattern: boolean = false;
+    private zProjection: boolean = false;
+    private sumValue: number = 1;
+    private crosshairElements: {[key: string]: {horizontal: HTMLElement, vertical: HTMLElement}} = {};
 
     constructor(container: HTMLElement) {
         this.container = container;
         this.initializeViewer();
+        this.initializeCrosshairs();
     }
 
     private initializeViewer() {
-        this.renderWindow = vtkFullScreenRenderWindow.newInstance({
-            background: [0, 0, 0] as [number, number, number],
-            container: this.container,
+        // Create render windows for each view
+        const xyView = document.getElementById('xy-view')!;
+        const xzView = document.getElementById('xz-view')!;
+        const yzView = document.getElementById('yz-view')!;
+
+        // Initialize render windows
+        this.renderWindows.xy = vtkGenericRenderWindow.newInstance();
+        this.renderWindows.xz = vtkGenericRenderWindow.newInstance();
+        this.renderWindows.yz = vtkGenericRenderWindow.newInstance();
+
+        // Set up containers
+        this.renderWindows.xy.setContainer(xyView);
+        this.renderWindows.xz.setContainer(xzView);
+        this.renderWindows.yz.setContainer(yzView);
+
+        // Get renderers
+        this.renderers.xy = this.renderWindows.xy.getRenderer();
+        this.renderers.xz = this.renderWindows.xz.getRenderer();
+        this.renderers.yz = this.renderWindows.yz.getRenderer();
+
+        // Set background color
+        Object.values(this.renderers).forEach(renderer => {
+            renderer.setBackground(0.1, 0.1, 0.1);
         });
 
-        this.renderer = this.renderWindow.getRenderer();
-        this.renderWindow.getRenderWindow().render();
+        // Initialize interactors and set manipulator style
+        Object.values(this.renderWindows).forEach(renderWindow => {
+            const interactor = renderWindow.getInteractor();
+            
+            // Use vtkInteractorStyleManipulator
+            const interactorStyle = vtkInteractorStyleManipulator.newInstance();
+            interactor.setInteractorStyle(interactorStyle);
+
+            // Create and add manipulators for mouse buttons
+            // Middle button (2) pans
+            const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({ button: 2 });
+            interactorStyle.addMouseManipulator(panManipulator);
+
+            // Right button (3) zooms
+            const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance({ button: 3 });
+            interactorStyle.addMouseManipulator(zoomManipulator);
+
+            // Initialize and bind events after setting the style
+            interactor.initialize();
+            interactor.bindEvents(renderWindow.getContainer());
+            interactor.setDesiredUpdateRate(15.0);
+        });
+    }
+
+    private initializeCrosshairs() {
+        const views = ['xy', 'xz', 'yz'];
+        views.forEach(view => {
+            const container = document.getElementById(`${view}-view`)!;
+            const horizontal = container.querySelector('.crosshair-horizontal') as HTMLElement;
+            const vertical = container.querySelector('.crosshair-vertical') as HTMLElement;
+            this.crosshairElements[view] = { horizontal, vertical };
+        });
     }
 
     public async loadVolume(imageData: any, metadata: VolumeMetadata) {
         this.vtkImage = imageData;
         this.metadata = metadata;
+        const dataRange = metadata.dataRange;
 
         // Set initial slice indices to center of volume
         this.currentSliceIndices = {
-            xy: Math.floor(metadata.dimensions[2] / 2), // z-axis center
-            yz: Math.floor(metadata.dimensions[0] / 2), // x-axis center
-            xz: Math.floor(metadata.dimensions[1] / 2)  // y-axis center
+            xy: Math.floor(metadata.dimensions[2] / 2), // Z index
+            xz: Math.floor(metadata.dimensions[1] / 2), // Y index
+            yz: Math.floor(metadata.dimensions[0] / 2)  // X index
         };
 
-        // Clear existing actors
-        if (this.volumeActor) {
-            this.renderer.removeVolume(this.volumeActor);
-        }
-        Object.values(this.sliceActors).forEach(actor => {
-            if (actor) {
-                this.renderer.removeViewProp(actor);
-            }
+        // Clear existing actors and references
+        Object.values(this.renderers).forEach(renderer => {
+            renderer.removeAllViewProps();
         });
+        this.sliceActors = {};
+        this.sliceMappers = {};
 
-        // Setup volume mapper with improved settings
-        const volumeMapper = vtkVolumeMapper.newInstance();
-        volumeMapper.setInputData(this.vtkImage);
-        volumeMapper.setSampleDistance(0.7);
-        volumeMapper.setBlendModeToComposite();
-
-        // Setup volume actor
-        this.volumeActor = vtkVolume.newInstance();
-        this.volumeActor.setMapper(volumeMapper);
-
-        // Setup color and opacity transfer functions for volume
-        const ctfun = vtkColorTransferFunction.newInstance();
-        const ofun = vtkPiecewiseFunction.newInstance();
-        
-        // Set initial color and opacity ranges based on data range
-        const dataRange = metadata.dataRange;
-        const range = dataRange[1] - dataRange[0];
-        const midPoint = (dataRange[0] + dataRange[1]) / 2;
-
-        // Set up color transfer function with a more gradual transition
-        ctfun.addRGBPoint(dataRange[0], 0.0, 0.0, 0.0);
-        ctfun.addRGBPoint(midPoint - range * 0.25, 0.0, 0.0, 0.5);
-        ctfun.addRGBPoint(midPoint, 0.5, 0.5, 0.5);
-        ctfun.addRGBPoint(midPoint + range * 0.25, 0.5, 0.5, 1.0);
-        ctfun.addRGBPoint(dataRange[1], 1.0, 1.0, 1.0);
-
-        // Set up opacity transfer function with better visibility
-        ofun.addPoint(dataRange[0], 0.0);
-        ofun.addPoint(midPoint - range * 0.25, 0.1);
-        ofun.addPoint(midPoint, 0.3);
-        ofun.addPoint(midPoint + range * 0.25, 0.4);
-        ofun.addPoint(dataRange[1], 0.5);
-
-        this.volumeActor.getProperty().setRGBTransferFunction(0, ctfun);
-        this.volumeActor.getProperty().setScalarOpacity(0, ofun);
-        this.volumeActor.getProperty().setInterpolationTypeToLinear();
-        this.volumeActor.getProperty().setShade(true);
-        this.volumeActor.getProperty().setAmbient(0.2);
-        this.volumeActor.getProperty().setDiffuse(0.7);
-        this.volumeActor.getProperty().setSpecular(0.3);
-
-        // Setup slice actors for orthogonal views
-        const planes = {
-            xy: { normal: [0, 0, 1], origin: [0, 0, 0] },
-            yz: { normal: [1, 0, 0], origin: [0, 0, 0] },
-            xz: { normal: [0, 1, 0], origin: [0, 0, 0] }
+        // Setup slice actors for each view
+        const viewConfigs = {
+            // viewName: { planeAxis, sliceOrientation (X=0, Y=1, Z=2), initialSliceIndex }
+            // SWAPPED: xy view now shows XZ slice, xz view shows XY slice
+            xy: { planeAxis: 'y' as const, sliceOrientation: vtkImageMapper.default.SlicingMode.Y, initialSliceIndex: this.currentSliceIndices.xz }, // Was XZ
+            xz: { planeAxis: 'z' as const, sliceOrientation: vtkImageMapper.default.SlicingMode.Z, initialSliceIndex: this.currentSliceIndices.xy }, // Was XY
+            yz: { planeAxis: 'x' as const, sliceOrientation: vtkImageMapper.default.SlicingMode.X, initialSliceIndex: this.currentSliceIndices.yz }
         };
 
-        Object.entries(planes).forEach(([planeName, planeConfig]) => {
-            const sliceMapper = vtkImageResliceMapper.newInstance();
+        Object.entries(viewConfigs).forEach(([viewName, config]) => {
+            // Use newInstance from namespace
+            const sliceMapper = vtkImageMapper.newInstance();
             sliceMapper.setInputData(this.vtkImage);
-            
-            const sliceActor = vtkImageSlice.newInstance();
-            sliceActor.setMapper(sliceMapper as any); // Cast to any to fix type error
+            sliceMapper.setSlicingMode(config.sliceOrientation);
 
-            // Set initial contrast for slice view
+            // Set initial slice position using the correct method based on orientation
+            // Access SlicingMode via default export
+            switch (config.sliceOrientation) {
+                case vtkImageMapper.default.SlicingMode.X:
+                    sliceMapper.setXSlice(config.initialSliceIndex);
+                    break;
+                case vtkImageMapper.default.SlicingMode.Y:
+                    sliceMapper.setYSlice(config.initialSliceIndex);
+                    break;
+                case vtkImageMapper.default.SlicingMode.Z:
+                    sliceMapper.setZSlice(config.initialSliceIndex);
+                    break;
+            }
+
+            // Use newInstance from namespace
+            const sliceActor = vtkImageSlice.newInstance();
+            sliceActor.setMapper(sliceMapper);
+
+            // Set initial contrast
             const window = dataRange[1] - dataRange[0];
             const level = (dataRange[0] + dataRange[1]) / 2;
             sliceActor.getProperty().setColorWindow(window);
             sliceActor.getProperty().setColorLevel(level);
 
-            this.sliceMappers[planeName] = sliceMapper;
-            this.sliceActors[planeName] = sliceActor;
-            this.renderer.addViewProp(sliceActor);
+            // Store the mapper and actor directly by view name
+            this.sliceMappers[viewName] = sliceMapper;
+            this.sliceActors[viewName] = sliceActor;
+
+            // Add to the correct renderer
+            this.renderers[viewName].addActor(sliceActor);
         });
 
-        // Add volume actor to renderer
-        this.renderer.addVolume(this.volumeActor);
-
-        // Set view mode based on current mode
-        this.setViewMode(this.viewMode);
-        this.resetCamera();
-        this.renderWindow.getRenderWindow().render();
+        // Set up orthogonal views
+        this.setupOrthogonalViews();
+        this.updateCrosshairs();
+        this.resize(); // Ensure initial size is correct after layout
     }
 
-    public setViewMode(mode: 'volume' | 'slice' | 'orthogonal') {
-        if (!this.volumeActor || !this.sliceActors) return;
-
-        this.viewMode = mode;
-        if (mode === 'volume') {
-            // In volume mode, hide all slice views
-            this.volumeActor.setVisibility(true);
-            Object.values(this.sliceActors).forEach(actor => {
-                actor.setVisibility(false);
-            });
-            this.resetCamera();
-        } else if (mode === 'orthogonal') {
-            // In orthogonal mode, show all slice views and hide volume
-            this.volumeActor.setVisibility(false);
-            Object.values(this.sliceActors).forEach(actor => {
-                actor.setVisibility(true);
-            });
-            this.updateAllSlices();
-        } else {
-            // In single slice mode, show only the selected slice and hide volume
-            this.volumeActor.setVisibility(false);
-            Object.entries(this.sliceActors).forEach(([name, actor]) => {
-                actor.setVisibility(name === this.currentSingleSliceView);
-            });
-            this.updateSlice(this.currentSingleSliceView);
-        }
-        this.renderWindow.getRenderWindow().render();
-    }
-
-    private setSliceCameraPosition(plane: 'xy' | 'yz' | 'xz') {
+    private setupOrthogonalViews() {
         if (!this.metadata) return;
 
-        const camera = this.renderer.getActiveCamera();
         const dimensions = this.metadata.dimensions;
         const spacing = this.metadata.spacing;
         const origin = this.metadata.origin;
 
-        // Calculate the center of the volume
+        // Calculate bounds
+        const bounds = {
+            xMin: origin[0],
+            xMax: origin[0] + dimensions[0] * spacing[0],
+            yMin: origin[1],
+            yMax: origin[1] + dimensions[1] * spacing[1],
+            zMin: origin[2],
+            zMax: origin[2] + dimensions[2] * spacing[2]
+        };
+
+        // Calculate center
         const center = [
-            origin[0] + (dimensions[0] * spacing[0]) / 2,
-            origin[1] + (dimensions[1] * spacing[1]) / 2,
-            origin[2] + (dimensions[2] * spacing[2]) / 2
+            (bounds.xMin + bounds.xMax) / 2,
+            (bounds.yMin + bounds.yMax) / 2,
+            (bounds.zMin + bounds.zMax) / 2
         ];
 
-        // Set camera position and orientation based on the plane
-        switch (plane) {
-            case 'xy':
-                camera.setPosition(center[0], center[1], center[2] + 100);
-                camera.setFocalPoint(center[0], center[1], center[2]);
-                camera.setViewUp(0, 1, 0);
-                break;
-            case 'yz':
-                camera.setPosition(center[0] + 100, center[1], center[2]);
-                camera.setFocalPoint(center[0], center[1], center[2]);
-                camera.setViewUp(0, 0, 1);
-                break;
-            case 'xz':
-                camera.setPosition(center[0], center[1] + 100, center[2]);
-                camera.setFocalPoint(center[0], center[1], center[2]);
-                camera.setViewUp(0, 0, 1);
-                break;
-        }
+        // Calculate world dimensions for scaling
+        const worldDimX = dimensions[0] * spacing[0];
+        const worldDimY = dimensions[1] * spacing[1];
+        const worldDimZ = dimensions[2] * spacing[2];
 
-        // Reset the camera to fit the view
-        this.renderer.resetCamera();
-        this.renderWindow.getRenderWindow().render();
-    }
+        // Determine the scale needed to fit the tallest slice vertically
+        // XY slice height is worldDimY
+        // XZ slice height is worldDimZ
+        // YZ slice height is worldDimZ
+        const maxSliceHeight = Math.max(worldDimY, worldDimZ);
+        const parallelScale = maxSliceHeight / 2; // Use half-height for parallelScale
 
-    public setSingleSliceView(view: 'xy' | 'yz' | 'xz') {
-        if (this.viewMode !== 'slice') return;
-        this.currentSingleSliceView = view;
-        Object.entries(this.sliceActors).forEach(([name, actor]) => {
-            actor.setVisibility(name === view);
+        // Calculate a fallback camera distance if needed (e.g., for perspective)
+        const maxDim = Math.max(worldDimX, worldDimY, worldDimZ);
+
+        // SWAPPED: Setup XY view (now showing XZ slice, like front view)
+        const xyCamera = this.renderers.xy.getActiveCamera();
+        xyCamera.setParallelProjection(true);
+        xyCamera.setPosition(center[0], bounds.yMax + maxDim, center[2]); // Position away along Y
+        xyCamera.setFocalPoint(center[0], center[1], center[2]);
+        xyCamera.setViewUp(0, 0, 1); // View Up along Z for XZ slice
+        xyCamera.setParallelScale(parallelScale); // Set calculated scale
+
+        // SWAPPED: Setup XZ view (now showing XY slice, like top-down view)
+        const xzCamera = this.renderers.xz.getActiveCamera();
+        xzCamera.setParallelProjection(true);
+        xzCamera.setPosition(center[0], center[1], bounds.zMax + maxDim); // Position away along Z
+        xzCamera.setFocalPoint(center[0], center[1], center[2]);
+        xzCamera.setViewUp(0, 1, 0); // View Up along Y for XY slice
+        xzCamera.setParallelScale(parallelScale); // Set calculated scale
+
+        // Setup YZ view (side)
+        const yzCamera = this.renderers.yz.getActiveCamera();
+        yzCamera.setParallelProjection(true);
+        yzCamera.setPosition(bounds.xMax + maxDim, center[1], center[2]); // Position away along X
+        yzCamera.setFocalPoint(center[0], center[1], center[2]);
+        yzCamera.setViewUp(0, 0, 1); // View Up along Z for YZ slice
+        yzCamera.setParallelScale(parallelScale); // Set calculated scale
+
+        // Reset cameras and render
+        Object.values(this.renderers).forEach(renderer => {
+            renderer.resetCamera();
         });
-        this.setSliceCameraPosition(view);
-        this.updateSlice(view);
+
+        this.renderAllViews();
     }
 
-    public setSingleSliceIndex(index: number) {
-        if (this.viewMode !== 'slice') return;
-        this.currentSliceIndices[this.currentSingleSliceView] = index;
-        this.updateSlice(this.currentSingleSliceView);
+    private updateCrosshairs() {
+        if (!this.metadata) return;
+
+        const dimensions = this.metadata.dimensions;
+        const views = ['xy', 'xz', 'yz'];
+        
+        views.forEach(view => {
+            const { horizontal, vertical } = this.crosshairElements[view];
+            const container = document.getElementById(`${view}-view`)!;
+            const rect = container.getBoundingClientRect();
+            
+            // Update crosshair positions based on current slice indices
+            const xPos = rect.width > 0 ? (this.currentSliceIndices.yz / dimensions[0]) * rect.width : 0;
+            const yPos = rect.height > 0 ? (this.currentSliceIndices.xz / dimensions[1]) * rect.height : 0;
+            const zPos = rect.height > 0 ? (this.currentSliceIndices.xy / dimensions[2]) * rect.height : 0;
+            
+            // SWAPPED: Adjust crosshair logic for swapped views
+            switch (view) {
+                case 'xy': // Now shows XZ slice
+                    horizontal.style.top = `${zPos}px`; // Based on Z index (xy plane)
+                    vertical.style.left = `${xPos}px`; // Based on X index (yz plane)
+                    break;
+                case 'xz': // Now shows XY slice
+                    horizontal.style.top = `${yPos}px`; // Based on Y index (xz plane)
+                    vertical.style.left = `${xPos}px`; // Based on X index (yz plane)
+                    break;
+                case 'yz': // Shows YZ slice (remains the same)
+                    horizontal.style.top = `${zPos}px`; // Based on Z index (xy plane)
+                    vertical.style.left = `${yPos}px`; // Based on Y index (xz plane)
+                    break;
+            }
+        });
+    }
+
+    public setZoomLevel(level: number) {
+        this.zoomLevel = level;
+        Object.values(this.renderers).forEach(renderer => {
+            const camera = renderer.getActiveCamera();
+            const currentScale = camera.getParallelScale();
+            camera.setParallelScale(currentScale / level);
+        });
+        this.renderAllViews();
+    }
+
+    public togglePattern() {
+        this.showPattern = !this.showPattern;
+        // TODO: Implement pattern overlay
+        this.renderAllViews();
+    }
+
+    public setZProjection(enabled: boolean) {
+        this.zProjection = enabled;
+        // TODO: Implement Z-projection
+        this.renderAllViews();
+    }
+
+    public setSumValue(value: number) {
+        this.sumValue = value;
+        if (this.zProjection) {
+            // TODO: Update Z-projection with new sum value
+            this.renderAllViews();
+        }
     }
 
     public setSliceIndex(plane: 'xy' | 'yz' | 'xz', index: number) {
-        if (this.viewMode !== 'orthogonal') return;
-        this.currentSliceIndices[plane] = index;
-        this.updateSlice(plane);
-    }
+        if (!this.metadata) return;
 
-    private updateSlice(plane: 'xy' | 'yz' | 'xz') {
-        if (!this.sliceActors[plane] || !this.vtkImage || !this.metadata) return;
+        const maxIndex = this.getMaxSliceIndex(plane);
+        // Clamp index to valid range
+        const clampedIndex = Math.max(0, Math.min(index, maxIndex));
 
-        const dimensions = this.metadata.dimensions;
-        const spacing = this.metadata.spacing;
-        const origin = this.metadata.origin;
+        this.currentSliceIndices[plane] = clampedIndex;
 
-        let axisIndex: number;
-        let position: number;
-
+        // Update the slice position on the corresponding mapper using the correct method
+        // SWAPPED: Adjust logic for swapped views
         switch (plane) {
-            case 'xy':
-                axisIndex = 2; // z-axis
-                position = origin[axisIndex] + this.currentSliceIndices[plane] * spacing[axisIndex];
+            case 'xy': // Controls Z slice, update the mapper in the XZ view container (this.sliceMappers.xz)
+                if (this.sliceMappers.xz) {
+                    this.sliceMappers.xz.setZSlice(clampedIndex);
+                }
                 break;
-            case 'yz':
-                axisIndex = 0; // x-axis
-                position = origin[axisIndex] + this.currentSliceIndices[plane] * spacing[axisIndex];
+            case 'xz': // Controls Y slice, update the mapper in the XY view container (this.sliceMappers.xy)
+                if (this.sliceMappers.xy) {
+                    this.sliceMappers.xy.setYSlice(clampedIndex);
+                }
                 break;
-            case 'xz':
-                axisIndex = 1; // y-axis
-                position = origin[axisIndex] + this.currentSliceIndices[plane] * spacing[axisIndex];
+            case 'yz': // Controls X slice, update the mapper in the YZ view container (this.sliceMappers.yz)
+                 if (this.sliceMappers.yz) {
+                    this.sliceMappers.yz.setXSlice(clampedIndex);
+                }
                 break;
         }
 
-        const normal = [0, 0, 0] as [number, number, number];
-        normal[axisIndex] = 1;
-
-        const planeInstance = vtkPlane.newInstance({
-            normal,
-            origin: [0, 0, 0] as [number, number, number],
-        });
-        planeInstance.setOrigin(normal.map((n, i) => n * position) as [number, number, number]);
-
-        this.sliceMappers[plane].setSlicePlane(planeInstance);
-        this.renderWindow.getRenderWindow().render();
+        this.updateCrosshairs();
+        this.renderAllViews();
     }
 
-    private updateAllSlices() {
-        if (this.viewMode !== 'orthogonal') return;
-        Object.keys(this.sliceActors).forEach(plane => {
-            this.updateSlice(plane as 'xy' | 'yz' | 'xz');
-        });
+    private getMaxSliceIndex(plane: 'xy' | 'yz' | 'xz'): number {
+        if (!this.metadata) return 0;
+        switch (plane) {
+            case 'xy': return this.metadata.dimensions[2] - 1;
+            case 'yz': return this.metadata.dimensions[0] - 1;
+            case 'xz': return this.metadata.dimensions[1] - 1;
+        }
     }
 
     public setContrast(window: number, level: number) {
+        // Use the simplified storage
         Object.values(this.sliceActors).forEach(actor => {
-            if (actor) {
+            if (actor) { // Check if actor exists
                 actor.getProperty().setColorWindow(window);
                 actor.getProperty().setColorLevel(level);
             }
         });
-        this.renderWindow.getRenderWindow().render();
+        this.renderAllViews();
     }
 
-    public setVolumeOpacity(opacity: number) {
-        if (!this.volumeActor) return;
-        this.volumeActor.getProperty().setScalarOpacity(0, opacity);
-        this.renderWindow.getRenderWindow().render();
-    }
-
-    public setVolumeColorMap(min: number, max: number) {
-        if (!this.volumeActor) return;
-        const ctfun = this.volumeActor.getProperty().getRGBTransferFunction(0);
-        ctfun.setRange(min, max);
-        this.renderWindow.getRenderWindow().render();
-    }
-
-    public togglePlay() {
-        if (this.isPlaying) {
-            if (this.playInterval) {
-                clearInterval(this.playInterval);
-                this.playInterval = null;
-            }
-            this.isPlaying = false;
-        } else {
-            this.isPlaying = true;
-            this.playInterval = setInterval(() => {
-                if (this.viewMode === 'orthogonal' && this.metadata && this.metadata.dimensions) {
-                    Object.keys(this.currentSliceIndices).forEach(plane => {
-                        const maxIndex = this.metadata!.dimensions[this.getAxisIndex(plane as 'xy' | 'yz' | 'xz')] - 1;
-                        this.currentSliceIndices[plane] = (this.currentSliceIndices[plane] + 1) % maxIndex;
-                        this.updateSlice(plane as 'xy' | 'yz' | 'xz');
-                    });
-                }
-            }, 100);
-        }
-    }
-
-    private getAxisIndex(plane: 'xy' | 'yz' | 'xz'): number {
-        switch (plane) {
-            case 'xy': return 2; // z-axis
-            case 'yz': return 0; // x-axis
-            case 'xz': return 1; // y-axis
-        }
-    }
-
-    public resetCamera() {
-        this.renderer.resetCamera();
-        this.renderWindow.getRenderWindow().render();
+    private renderAllViews() {
+        Object.values(this.renderWindows).forEach(renderWindow => {
+            renderWindow.getRenderWindow().render();
+        });
     }
 
     public resize() {
-        this.renderWindow.resize();
+        Object.values(this.renderWindows).forEach(renderWindow => {
+            renderWindow.resize();
+        });
+        this.updateCrosshairs();
     }
 
     public dispose() {
         if (this.playInterval) {
             clearInterval(this.playInterval);
         }
-        this.renderWindow.delete();
-    }
-
-    public get playing(): boolean {
-        return this.isPlaying;
+        Object.values(this.renderWindows).forEach(renderWindow => {
+            renderWindow.delete();
+        });
     }
 } 

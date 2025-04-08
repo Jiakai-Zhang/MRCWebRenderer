@@ -31,65 +31,42 @@ fileInput.addEventListener('change', async (event) => {
     }
 });
 
-// View mode controls
-const viewModeSelect = document.getElementById('viewMode') as HTMLSelectElement;
-viewModeSelect.addEventListener('change', () => {
-    const mode = viewModeSelect.value as 'volume' | 'slice' | 'orthogonal';
-    viewer.setViewMode(mode);
-    
-    // Show/hide appropriate controls
-    const singleSliceControls = document.getElementById('singleSliceControls') as HTMLElement;
-    const orthogonalSliceControls = document.getElementById('orthogonalSliceControls') as HTMLElement;
-    
-    if (mode === 'slice') {
-        singleSliceControls.style.display = 'block';
-        orthogonalSliceControls.style.display = 'none';
-    } else if (mode === 'orthogonal') {
-        singleSliceControls.style.display = 'none';
-        orthogonalSliceControls.style.display = 'block';
-    } else {
-        singleSliceControls.style.display = 'none';
-        orthogonalSliceControls.style.display = 'none';
-    }
+// 3D View button
+const view3DButton = document.getElementById('view3D') as HTMLButtonElement;
+view3DButton.addEventListener('click', () => {
+    // TODO: Implement 3D view
+    console.log('3D view clicked');
 });
 
-// Single slice controls
-const sliceViewSelect = document.getElementById('sliceView') as HTMLSelectElement;
-const singleSlicePositionInput = document.getElementById('singleSlicePosition') as HTMLInputElement;
-
-// Get value label elements
-const singleSlicePositionValue = document.getElementById('singleSlicePositionValue') as HTMLSpanElement;
-
-sliceViewSelect.addEventListener('change', () => {
-    viewer.setSingleSliceView(sliceViewSelect.value as 'xy' | 'yz' | 'xz');
-    if (maxSliceIndices) {
-        updateSingleSliceControls();
-    }
+// Zoom control
+const zoomLevelInput = document.getElementById('zoomLevel') as HTMLInputElement;
+zoomLevelInput.addEventListener('change', () => {
+    viewer.setZoomLevel(parseFloat(zoomLevelInput.value));
 });
 
-singleSlicePositionInput.addEventListener('input', () => {
-    singleSlicePositionValue.textContent = singleSlicePositionInput.value;
-    viewer.setSingleSliceIndex(parseInt(singleSlicePositionInput.value));
+// Pattern toggle
+const patternToggle = document.getElementById('togglePattern') as HTMLButtonElement;
+patternToggle.addEventListener('click', () => {
+    viewer.togglePattern();
+    patternToggle.classList.toggle('active');
 });
 
-function updateSingleSliceControls() {
-    const currentView = sliceViewSelect.value as 'xy' | 'yz' | 'xz';
-    singleSlicePositionInput.max = maxSliceIndices[currentView].toString();
-    const centerValue = Math.floor(parseInt(singleSlicePositionInput.max) / 2).toString();
-    singleSlicePositionInput.value = centerValue;
-    singleSlicePositionValue.textContent = centerValue;
-}
+// Z-Projection controls
+const zProjectionCheckbox = document.getElementById('zProjection') as HTMLInputElement;
+const sumValueInput = document.getElementById('sumValue') as HTMLInputElement;
+
+zProjectionCheckbox.addEventListener('change', () => {
+    viewer.setZProjection(zProjectionCheckbox.checked);
+});
+
+sumValueInput.addEventListener('change', () => {
+    viewer.setSumValue(parseInt(sumValueInput.value));
+});
 
 // Slice controls
-const xySlicePositionInput = document.getElementById('xySlicePosition') as HTMLInputElement;
-const yzSlicePositionInput = document.getElementById('yzSlicePosition') as HTMLInputElement;
-const xzSlicePositionInput = document.getElementById('xzSlicePosition') as HTMLInputElement;
-const playPauseButton = document.getElementById('playPause') as HTMLButtonElement;
-
-// Get value label elements
-const xySlicePositionValue = document.getElementById('xySlicePositionValue') as HTMLSpanElement;
-const yzSlicePositionValue = document.getElementById('yzSlicePositionValue') as HTMLSpanElement;
-const xzSlicePositionValue = document.getElementById('xzSlicePositionValue') as HTMLSpanElement;
+const xSlider = document.getElementById('xSlider') as HTMLInputElement;
+const ySlider = document.getElementById('ySlider') as HTMLInputElement;
+const zSlider = document.getElementById('zSlider') as HTMLInputElement;
 
 let maxSliceIndices = {
     xy: 0,
@@ -111,43 +88,34 @@ function updateSliceControls(metadata: any) {
         xz: Math.floor(metadata.dimensions[1] / 2)  // y-axis center
     };
 
-    // Update orthogonal slice controls
-    xySlicePositionInput.max = maxSliceIndices.xy.toString();
-    yzSlicePositionInput.max = maxSliceIndices.yz.toString();
-    xzSlicePositionInput.max = maxSliceIndices.xz.toString();
+    // Update sliders
+    xSlider.max = maxSliceIndices.yz.toString();
+    ySlider.max = maxSliceIndices.xz.toString();
+    zSlider.max = maxSliceIndices.xy.toString();
 
-    // Set initial positions to center and update value labels
-    xySlicePositionInput.value = centerPositions.xy.toString();
-    xySlicePositionValue.textContent = centerPositions.xy.toString();
-    
-    yzSlicePositionInput.value = centerPositions.yz.toString();
-    yzSlicePositionValue.textContent = centerPositions.yz.toString();
-    
-    xzSlicePositionInput.value = centerPositions.xz.toString();
-    xzSlicePositionValue.textContent = centerPositions.xz.toString();
-
-    // Update single slice controls
-    updateSingleSliceControls();
+    // Set initial positions to center
+    xSlider.value = centerPositions.yz.toString();
+    ySlider.value = centerPositions.xz.toString();
+    zSlider.value = centerPositions.xy.toString();
 }
 
-xySlicePositionInput.addEventListener('input', () => {
-    xySlicePositionValue.textContent = xySlicePositionInput.value;
-    viewer.setSliceIndex('xy', parseInt(xySlicePositionInput.value));
+xSlider.addEventListener('input', () => {
+    viewer.setSliceIndex('yz', parseInt(xSlider.value));
 });
 
-yzSlicePositionInput.addEventListener('input', () => {
-    yzSlicePositionValue.textContent = yzSlicePositionInput.value;
-    viewer.setSliceIndex('yz', parseInt(yzSlicePositionInput.value));
+ySlider.addEventListener('input', () => {
+    viewer.setSliceIndex('xz', parseInt(ySlider.value));
 });
 
-xzSlicePositionInput.addEventListener('input', () => {
-    xzSlicePositionValue.textContent = xzSlicePositionInput.value;
-    viewer.setSliceIndex('xz', parseInt(xzSlicePositionInput.value));
+zSlider.addEventListener('input', () => {
+    viewer.setSliceIndex('xy', parseInt(zSlider.value));
 });
 
-playPauseButton.addEventListener('click', () => {
-    viewer.togglePlay();
-    playPauseButton.textContent = viewer.playing ? 'Pause' : 'Play';
+// Step right button
+const stepRightButton = document.getElementById('stepRight') as HTMLButtonElement;
+stepRightButton.addEventListener('click', () => {
+    // TODO: Implement step right functionality
+    console.log('Step right clicked');
 });
 
 // Contrast controls
@@ -168,16 +136,10 @@ contrastLevelInput.addEventListener('input', () => {
     );
 });
 
-// Volume opacity control
-const volumeOpacityInput = document.getElementById('volumeOpacity') as HTMLInputElement;
-volumeOpacityInput.addEventListener('input', () => {
-    viewer.setVolumeOpacity(parseFloat(volumeOpacityInput.value));
-});
-
 // Camera reset
 const resetCameraButton = document.getElementById('resetCamera') as HTMLButtonElement;
 resetCameraButton.addEventListener('click', () => {
-    viewer.resetCamera();
+    viewer.resize();
 });
 
 // Handle window resize

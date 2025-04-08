@@ -8,27 +8,122 @@
         body {
             margin: 0;
             padding: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
-        #container {
             width: 100vw;
             height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;  /* Dark navy background */
+            color: #ffffff;
+        }
+        #container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+            background: #1a1a2e;
+        }
+        #top-toolbar {
+            height: 40px;
+            background: #2a2a3e;  /* Slightly lighter navy */
+            border-bottom: 1px solid #3a3a4e;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            gap: 10px;
+        }
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0 10px;
+            border-right: 1px solid #3a3a4e;
+        }
+        .toolbar-group:last-child {
+            border-right: none;
+        }
+        .toolbar-input {
+            width: 60px;
+            padding: 4px;
+            background: #1a1a2e;
+            border: 1px solid #3a3a4e;
+            color: #ffffff;
+            border-radius: 4px;
+        }
+        .toolbar-button {
+            background: none;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .toolbar-button:hover {
+            background: #404040;
+        }
+        .toolbar-button.active {
+            background: #4CAF50;
+        }
+        #viewer-layout {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 4fr 1fr;
+            grid-template-rows: 200px 2fr;
+            gap: 1px;
+            padding: 1px;
+            background: #1a1a2e;
+            min-height: 0;
+        }
+        .view-panel {
+            background: #000000;  /* Black background for image panels */
+            overflow: hidden;
             position: relative;
         }
-        #controls {
+        #xy-view {
+            grid-column: 1 / 2;
+            grid-row: 1 / 2;
+            border: 1px solid #ff0000;
+        }
+        #xz-view {
+            grid-column: 1 / 2;
+            grid-row: 2 / 3;
+            border: 1px solid #00ff00;
+        }
+        #yz-view {
+            grid-column: 2 / 3;
+            grid-row: 2 / 3;
+            border: 1px solid #0000ff;
+        }
+        .crosshair {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 8px;
-            color: white;
+            pointer-events: none;
             z-index: 1000;
-            max-width: 300px;
+        }
+        .crosshair-horizontal {
+            width: 100%;
+            height: 1px;
+            background: yellow;
+            top: 50%;
+            left: 0;
+        }
+        .crosshair-vertical {
+            width: 1px;
+            height: 100%;
+            background: yellow;
+            left: 50%;
+            top: 0;
+        }
+        #controls {
+            background: #2a2a3e;
+            padding: 8px;
+            border-top: 1px solid #3a3a4e;
+            max-height: 200px;
+            overflow-y: auto;
         }
         .control-group {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         .control-group label {
             display: block;
@@ -54,6 +149,9 @@
             padding: 8px;
             border-radius: 4px;
             margin-bottom: 10px;
+            background: #1e1e1e;
+            color: #ffffff;
+            border: 1px solid #404040;
         }
         #fileInput {
             display: none;
@@ -67,56 +165,57 @@
     </style>
 </head>
 <body>
-    <div id="container"></div>
+    <div id="container">
+        <div id="top-toolbar">
+            <div class="toolbar-group">
+                <button class="toolbar-button" id="view3D" title="3D View">3D</button>
+            </div>
+            <div class="toolbar-group">
+                <input type="number" class="toolbar-input" id="zoomLevel" value="1.00" step="0.01" min="0.1" max="10">
+            </div>
+            <div class="toolbar-group">
+                <button class="toolbar-button" id="togglePattern" title="Toggle Pattern">Grid</button>
+            </div>
+            <div class="toolbar-group">
+                <input type="checkbox" id="zProjection">
+                <label for="zProjection">Z-Projection</label>
+                <input type="number" class="toolbar-input" id="sumValue" value="1" min="1" max="100">
+            </div>
+            <div class="toolbar-group">
+                <label>X:</label>
+                <input type="range" id="xSlider" min="0" max="100" value="50">
+            </div>
+            <div class="toolbar-group">
+                <label>Y:</label>
+                <input type="range" id="ySlider" min="0" max="100" value="50">
+            </div>
+            <div class="toolbar-group">
+                <label>Z:</label>
+                <input type="range" id="zSlider" min="0" max="100" value="50">
+            </div>
+            <div class="toolbar-group">
+                <button class="toolbar-button" id="stepRight" title="Step Right">→</button>
+            </div>
+        </div>
+        <div id="viewer-layout">
+            <div id="xy-view" class="view-panel">
+                <div class="crosshair crosshair-horizontal"></div>
+                <div class="crosshair crosshair-vertical"></div>
+            </div>
+            <div id="xz-view" class="view-panel">
+                <div class="crosshair crosshair-horizontal"></div>
+                <div class="crosshair crosshair-vertical"></div>
+            </div>
+            <div id="yz-view" class="view-panel">
+                <div class="crosshair crosshair-horizontal"></div>
+                <div class="crosshair crosshair-vertical"></div>
+            </div>
+        </div>
+    </div>
     <div id="controls">
         <div class="control-group">
             <input type="file" id="fileInput" accept=".mrc">
             <button class="file-upload-btn" onclick="document.getElementById('fileInput').click()">Choose MRC File</button>
-        </div>
-        <div class="control-group">
-            <label>View Mode:</label>
-            <select id="viewMode">
-                <option value="volume">Volume</option>
-                <option value="slice">Single Slice</option>
-                <option value="orthogonal">Orthogonal Slices</option>
-            </select>
-        </div>
-        <div class="control-group" id="singleSliceControls">
-            <label>Slice View:</label>
-            <select id="sliceView">
-                <option value="xy">Front (XY)</option>
-                <option value="yz">Side (YZ)</option>
-                <option value="xz">Top (XZ)</option>
-            </select>
-            <label>Slice Position:</label>
-            <div style="display: flex; align-items: center;">
-                <input type="range" id="singleSlicePosition" min="0" max="100" value="50">
-                <span id="singleSlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
-            </div>
-        </div>
-        <div class="control-group" id="orthogonalSliceControls">
-            <div id="xySliceControls" class="slice-control-group">
-                <label>XY Slice Position:</label>
-                <div style="display: flex; align-items: center;">
-                    <input type="range" id="xySlicePosition" min="0" max="100" value="50">
-                    <span id="xySlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
-                </div>
-            </div>
-            <div id="yzSliceControls" class="slice-control-group">
-                <label>YZ Slice Position:</label>
-                <div style="display: flex; align-items: center;">
-                    <input type="range" id="yzSlicePosition" min="0" max="100" value="50">
-                    <span id="yzSlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
-                </div>
-            </div>
-            <div id="xzSliceControls" class="slice-control-group">
-                <label>XZ Slice Position:</label>
-                <div style="display: flex; align-items: center;">
-                    <input type="range" id="xzSlicePosition" min="0" max="100" value="50">
-                    <span id="xzSlicePositionValue" style="margin-left: 10px; min-width: 40px;">50</span>
-                </div>
-            </div>
-            <button id="playPause">Play</button>
         </div>
         <div class="control-group">
             <label>Contrast Window:</label>
@@ -128,7 +227,10 @@
             <label>Volume Opacity:</label>
             <input type="range" id="volumeOpacity" min="0" max="1" step="0.1" value="0.5">
         </div>
-        <button id="resetCamera">Reset Camera</button>
+        <div class="control-group">
+            <button id="resetCamera">Reset Camera</button>
+            <button id="centerSlice">Center Slice</button>
+        </div>
     </div>
 </body>
 </html> 
