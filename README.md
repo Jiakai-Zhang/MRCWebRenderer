@@ -58,9 +58,7 @@ The display consists of three orthogonal viewports:
 - Dynamic panel resizing
 - Mouse-based interaction for:
   - Selection
-  - Contour drawing
   - View panning/zooming
-- Color-coded annotation system
 
 ## Requirements
 
@@ -97,15 +95,13 @@ npm run build
 
 ## Usage
 
-1. Open the application in your web browser (default: http://localhost:9000)
+1. Open the application in your web browser (default: http://localhost:3000)
 2. Click "Choose File" to select a .mrc volume file
 3. Use the controls to:
    - Switch between volume and slice views
    - Navigate through slices using axis sliders
    - Adjust zoom level
    - Toggle pattern overlays
-   - Enable Z-projection
-   - Create and edit annotations
    - Use synchronized crosshair for precise navigation
 
 ## Technical Details
@@ -118,4 +114,4 @@ The application uses:
 
 ## License
 
-ISC 
+MIT
