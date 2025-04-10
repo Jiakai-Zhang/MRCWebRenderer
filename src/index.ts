@@ -3,24 +3,17 @@ import { VolumeViewer } from './components/VolumeViewer';
 import { loadMRCFile } from './utils/mrcUtils';
 import { createTestVolume } from './utils/testData';
 
-// Initialize the volume viewer
-const container = document.querySelector('#container');
-if (!container) {
-    throw new Error('Container element not found');
-}
-
-const viewer = new VolumeViewer(container as HTMLElement);
-
-// --- Contrast UI Elements (Define these early) ---
-const contrastWindowSlider = document.getElementById('contrastWindow') as HTMLInputElement;
-const contrastLevelSlider = document.getElementById('contrastLevel') as HTMLInputElement;
-const contrastWindowValueSpan = document.getElementById('contrastWindowValue') as HTMLSpanElement;
-const contrastWindowRangeSpan = document.getElementById('contrastWindowRange') as HTMLSpanElement;
-const contrastLevelValueSpan = document.getElementById('contrastLevelValue') as HTMLSpanElement;
-const contrastLevelRangeSpan = document.getElementById('contrastLevelRange') as HTMLSpanElement;
+// --- Function Definitions (Safe outside DOMContentLoaded) ---
 
 // Function to update the text display for contrast sliders
-function updateContrastDisplay() {
+function updateContrastDisplay(
+    contrastWindowSlider: HTMLInputElement | null,
+    contrastLevelSlider: HTMLInputElement | null,
+    contrastWindowValueSpan: HTMLSpanElement | null,
+    contrastWindowRangeSpan: HTMLSpanElement | null,
+    contrastLevelValueSpan: HTMLSpanElement | null,
+    contrastLevelRangeSpan: HTMLSpanElement | null
+) {
     // Check if elements exist before updating
     if (contrastWindowSlider && contrastWindowValueSpan && contrastWindowRangeSpan) {
         contrastWindowValueSpan.textContent = `Value: ${Number(contrastWindowSlider.value).toFixed(2)}`;
@@ -32,42 +25,18 @@ function updateContrastDisplay() {
     }
 }
 
-// --- Initial Load --- Need to make this async to wait for loadVolume
-async function initializeViewer() {
-    // Load test volume by default
-    const { imageData, metadata } = createTestVolume();
-    await viewer.loadVolume(imageData, metadata); // Wait for load to complete
-
-    // Update slice controls (you might have this logic elsewhere too)
-    updateSliceControls(metadata); // Make sure this function exists and works
-
-    // Update contrast display based on initial auto-contrast
-    const initialContrast = viewer.getContrastSettings();
-    if (initialContrast && contrastWindowSlider && contrastLevelSlider) {
-        const dataRange = metadata.dataRange;
-        const rangeSpan = dataRange[1] - dataRange[0];
-        contrastWindowSlider.min = "0";
-        contrastWindowSlider.max = String(Math.ceil(Math.max(rangeSpan, initialContrast.window * 2)));
-        contrastLevelSlider.min = String(Math.floor(dataRange[0]));
-        contrastLevelSlider.max = String(Math.ceil(dataRange[1]));
-        contrastWindowSlider.value = String(initialContrast.window);
-        contrastLevelSlider.value = String(initialContrast.level);
-    }
-    updateContrastDisplay(); // Update display after initial load
-}
-
-// --- Slice Controls (Assuming definition exists somewhere like this) ---
-const xSlider = document.getElementById('xSlider') as HTMLInputElement;
-const ySlider = document.getElementById('ySlider') as HTMLInputElement;
-const zSlider = document.getElementById('zSlider') as HTMLInputElement;
-
 let maxSliceIndices = {
     xy: 0,
     yz: 0,
     xz: 0
 };
 
-function updateSliceControls(metadata: any) {
+function updateSliceControls(
+    metadata: any,
+    xSlider: HTMLInputElement | null,
+    ySlider: HTMLInputElement | null,
+    zSlider: HTMLInputElement | null
+) {
     if (!metadata?.dimensions) return; // Guard clause
     maxSliceIndices = {
         xy: metadata.dimensions[2] - 1, // z-axis
@@ -93,149 +62,258 @@ function updateSliceControls(metadata: any) {
     }
 }
 
-// --- Event Listeners ---
 
-// File input handling
-const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-fileInput.addEventListener('change', async (event) => {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) {
-        try {
-            const { imageData, metadata } = await loadMRCFile(file);
-            if (!metadata || !imageData || !metadata.dimensions || metadata.dimensions.length !== 3) {
-                console.error('Invalid dimensions for volume viewing');
-                alert('Invalid MRC file or dimensions.'); // User feedback
-                return;
-            }
+// --- Main Application Logic (Run after DOM is ready) ---
+document.addEventListener('DOMContentLoaded', () => {
 
-            await viewer.loadVolume(imageData, metadata);
-
-            // Update slice sliders
-            updateSliceControls(metadata);
-
-            // Update contrast sliders and their display (use existing references)
-            const contrastSettings = viewer.getContrastSettings();
-            if (contrastSettings && contrastWindowSlider && contrastLevelSlider) {
-                 // Update slider range if necessary
-                const dataRange = metadata.dataRange;
-                const rangeSpan = dataRange[1] - dataRange[0];
-                contrastWindowSlider.min = "0";
-                contrastWindowSlider.max = String(Math.ceil(Math.max(rangeSpan, contrastSettings.window * 2)));
-                contrastLevelSlider.min = String(Math.floor(dataRange[0]));
-                contrastLevelSlider.max = String(Math.ceil(dataRange[1]));
-                // Set value *after* min/max
-                contrastWindowSlider.value = String(contrastSettings.window);
-                contrastLevelSlider.value = String(contrastSettings.level);
-
-            } else {
-                 console.warn('Could not get initial contrast settings from viewer. Setting defaults.');
-                 const dataRange = metadata.dataRange;
-                 const fallbackWindow = dataRange[1] - dataRange[0];
-                 const fallbackLevel = (dataRange[1] + dataRange[0]) / 2;
-                 if (contrastWindowSlider) {
-                    contrastWindowSlider.min = "0";
-                    contrastWindowSlider.max = String(fallbackWindow);
-                    contrastWindowSlider.value = String(fallbackWindow);
-                 }
-                 if (contrastLevelSlider) {
-                    contrastLevelSlider.min = String(dataRange[0]);
-                    contrastLevelSlider.max = String(dataRange[1]);
-                    contrastLevelSlider.value = String(fallbackLevel);
-                 }
-            }
-            updateContrastDisplay(); // Update the text display AFTER changes
-
-        } catch (error) {
-            console.error('Error loading MRC file:', error);
-            alert('Error loading MRC file. Please try again.');
-        }
+    // --- Get DOM Elements ---
+    const container = document.querySelector('#container');
+    if (!container) {
+        console.error('Container element #container not found');
+        return; // Stop execution if the main container is missing
     }
-});
 
-// Contrast slider listeners (ensure elements exist)
-if (contrastWindowSlider) {
-    contrastWindowSlider.addEventListener('input', () => {
+    const contrastWindowSlider = document.getElementById('contrastWindow') as HTMLInputElement | null;
+    const contrastLevelSlider = document.getElementById('contrastLevel') as HTMLInputElement | null;
+    const contrastWindowValueSpan = document.getElementById('contrastWindowValue') as HTMLSpanElement | null;
+    const contrastWindowRangeSpan = document.getElementById('contrastWindowRange') as HTMLSpanElement | null;
+    const contrastLevelValueSpan = document.getElementById('contrastLevelValue') as HTMLSpanElement | null;
+    const contrastLevelRangeSpan = document.getElementById('contrastLevelRange') as HTMLSpanElement | null;
+    const xSlider = document.getElementById('xSlider') as HTMLInputElement | null;
+    const ySlider = document.getElementById('ySlider') as HTMLInputElement | null;
+    const zSlider = document.getElementById('zSlider') as HTMLInputElement | null;
+    const fileInput = document.getElementById('fileInput') as HTMLInputElement | null;
+    const view3DButton = document.getElementById('view3D') as HTMLButtonElement | null;
+    const zoomLevelInput = document.getElementById('zoomLevel') as HTMLInputElement | null;
+    const patternToggle = document.getElementById('togglePattern') as HTMLButtonElement | null;
+    const zProjectionCheckbox = document.getElementById('zProjection') as HTMLInputElement | null;
+    const sumValueInput = document.getElementById('sumValue') as HTMLInputElement | null;
+    const stepRightButton = document.getElementById('stepRight') as HTMLButtonElement | null;
+    const resetCameraButton = document.getElementById('resetCamera') as HTMLButtonElement | null;
+    const centerSliceButton = document.getElementById('centerSlice') as HTMLButtonElement | null;
+
+    // Initialize the volume viewer
+    const viewer = new VolumeViewer(container as HTMLElement);
+
+    // --- Initial Load Function ---
+    async function initializeViewer() {
+        // Load test volume by default
+        const { imageData, metadata } = createTestVolume();
+        await viewer.loadVolume(imageData, metadata); // Wait for load to complete
+
+        // Update slice controls
+        updateSliceControls(metadata, xSlider, ySlider, zSlider);
+
+        // Update contrast display based on initial auto-contrast
+        const initialContrast = viewer.getContrastSettings();
+        if (initialContrast && contrastWindowSlider && contrastLevelSlider && metadata.dataRange) {
+            const dataRange = metadata.dataRange;
+            const rangeSpan = dataRange[1] - dataRange[0];
+            contrastWindowSlider.min = "0";
+            // Ensure max is at least the initial window or the full range span
+            contrastWindowSlider.max = String(Math.ceil(Math.max(rangeSpan, initialContrast.window)));
+            contrastLevelSlider.min = String(Math.floor(dataRange[0]));
+            contrastLevelSlider.max = String(Math.ceil(dataRange[1]));
+
+            // Clamp initial values within the calculated range
+            contrastWindowSlider.value = String(Math.max(parseFloat(contrastWindowSlider.min), Math.min(parseFloat(contrastWindowSlider.max), initialContrast.window)));
+            contrastLevelSlider.value = String(Math.max(parseFloat(contrastLevelSlider.min), Math.min(parseFloat(contrastLevelSlider.max), initialContrast.level)));
+
+        } else if (metadata.dataRange) {
+            console.warn('Could not get initial contrast settings. Setting defaults based on data range.');
+            const dataRange = metadata.dataRange;
+            const fallbackWindow = dataRange[1] - dataRange[0];
+            const fallbackLevel = (dataRange[1] + dataRange[0]) / 2;
+            if (contrastWindowSlider) {
+                contrastWindowSlider.min = "0";
+                contrastWindowSlider.max = String(fallbackWindow);
+                contrastWindowSlider.value = String(fallbackWindow);
+             }
+             if (contrastLevelSlider) {
+                contrastLevelSlider.min = String(dataRange[0]);
+                contrastLevelSlider.max = String(dataRange[1]);
+                contrastLevelSlider.value = String(fallbackLevel);
+             }
+        }
+        updateContrastDisplay(
+            contrastWindowSlider, contrastLevelSlider,
+            contrastWindowValueSpan, contrastWindowRangeSpan,
+            contrastLevelValueSpan, contrastLevelRangeSpan
+        ); // Update display after initial load
+    }
+
+
+    // --- Event Listeners ---
+
+    // File input handling
+    fileInput?.addEventListener('change', async (event) => {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (file) {
+            try {
+                const { imageData, metadata } = await loadMRCFile(file);
+                if (!metadata || !imageData || !metadata.dimensions || metadata.dimensions.length !== 3) {
+                    console.error('Invalid dimensions for volume viewing');
+                    alert('Invalid MRC file or dimensions.'); // User feedback
+                    return;
+                }
+
+                await viewer.loadVolume(imageData, metadata);
+
+                // Update slice sliders
+                updateSliceControls(metadata, xSlider, ySlider, zSlider);
+
+                // Update contrast sliders and their display (use existing references)
+                 const contrastSettings = viewer.getContrastSettings();
+                 if (contrastSettings && contrastWindowSlider && contrastLevelSlider && metadata.dataRange) {
+                      // Update slider range if necessary
+                     const dataRange = metadata.dataRange;
+                     const rangeSpan = dataRange[1] - dataRange[0];
+                     contrastWindowSlider.min = "0";
+                     contrastWindowSlider.max = String(Math.ceil(Math.max(rangeSpan, contrastSettings.window))); // Use Math.max
+                     contrastLevelSlider.min = String(Math.floor(dataRange[0]));
+                     contrastLevelSlider.max = String(Math.ceil(dataRange[1]));
+                     // Set value *after* min/max
+                     contrastWindowSlider.value = String(Math.max(parseFloat(contrastWindowSlider.min), Math.min(parseFloat(contrastWindowSlider.max), contrastSettings.window)));
+                     contrastLevelSlider.value = String(Math.max(parseFloat(contrastLevelSlider.min), Math.min(parseFloat(contrastLevelSlider.max), contrastSettings.level)));
+
+                 } else if (metadata.dataRange) {
+                      console.warn('Could not get initial contrast settings from viewer. Setting defaults.');
+                      const dataRange = metadata.dataRange;
+                      const fallbackWindow = dataRange[1] - dataRange[0];
+                      const fallbackLevel = (dataRange[1] + dataRange[0]) / 2;
+                      if (contrastWindowSlider) {
+                         contrastWindowSlider.min = "0";
+                         contrastWindowSlider.max = String(fallbackWindow);
+                         contrastWindowSlider.value = String(fallbackWindow);
+                      }
+                      if (contrastLevelSlider) {
+                         contrastLevelSlider.min = String(dataRange[0]);
+                         contrastLevelSlider.max = String(dataRange[1]);
+                         contrastLevelSlider.value = String(fallbackLevel);
+                      }
+                 }
+                 updateContrastDisplay(
+                     contrastWindowSlider, contrastLevelSlider,
+                     contrastWindowValueSpan, contrastWindowRangeSpan,
+                     contrastLevelValueSpan, contrastLevelRangeSpan
+                 ); // Update the text display AFTER changes
+
+            } catch (error) {
+                console.error('Error loading MRC file:', error);
+                alert('Error loading MRC file. Please try again.');
+            }
+        }
+    });
+
+    // Contrast slider listeners
+    contrastWindowSlider?.addEventListener('input', () => {
         if (!contrastLevelSlider) return;
         viewer.setContrast(
             parseFloat(contrastWindowSlider.value),
             parseFloat(contrastLevelSlider.value)
         );
-        updateContrastDisplay(); // Update display on change
+        updateContrastDisplay(
+            contrastWindowSlider, contrastLevelSlider,
+            contrastWindowValueSpan, contrastWindowRangeSpan,
+            contrastLevelValueSpan, contrastLevelRangeSpan
+        );
     });
-}
 
-if (contrastLevelSlider) {
-    contrastLevelSlider.addEventListener('input', () => {
+    contrastLevelSlider?.addEventListener('input', () => {
         if (!contrastWindowSlider) return;
         viewer.setContrast(
             parseFloat(contrastWindowSlider.value),
             parseFloat(contrastLevelSlider.value)
         );
-        updateContrastDisplay(); // Update display on change
+        updateContrastDisplay(
+            contrastWindowSlider, contrastLevelSlider,
+            contrastWindowValueSpan, contrastWindowRangeSpan,
+            contrastLevelValueSpan, contrastLevelRangeSpan
+        );
     });
-}
 
-// --- Start the initialization ---
-initializeViewer();
+    // 3D View button
+    view3DButton?.addEventListener('click', () => {
+        // TODO: Implement 3D view
+        console.log('3D view clicked');
+    });
 
-// 3D View button
-const view3DButton = document.getElementById('view3D') as HTMLButtonElement;
-view3DButton.addEventListener('click', () => {
-    // TODO: Implement 3D view
-    console.log('3D view clicked');
-});
-// Zoom control
-const zoomLevelInput = document.getElementById('zoomLevel') as HTMLInputElement;
-zoomLevelInput.addEventListener('change', () => {
-    viewer.setZoomLevel(parseFloat(zoomLevelInput.value));
-});
+    // Zoom control
+    zoomLevelInput?.addEventListener('change', () => {
+        viewer.setZoomLevel(parseFloat(zoomLevelInput.value));
+    });
 
-// Pattern toggle
-const patternToggle = document.getElementById('togglePattern') as HTMLButtonElement;
-patternToggle.addEventListener('click', () => {
-    viewer.togglePattern();
-    patternToggle.classList.toggle('active');
-});
+    // Pattern toggle
+    patternToggle?.addEventListener('click', () => {
+        viewer.togglePattern();
+        patternToggle.classList.toggle('active');
+    });
 
-// Z-Projection controls
-const zProjectionCheckbox = document.getElementById('zProjection') as HTMLInputElement;
-const sumValueInput = document.getElementById('sumValue') as HTMLInputElement;
+    // Z-Projection controls
+    zProjectionCheckbox?.addEventListener('change', () => {
+        viewer.setZProjection(zProjectionCheckbox.checked);
+    });
 
-zProjectionCheckbox.addEventListener('change', () => {
-    viewer.setZProjection(zProjectionCheckbox.checked);
-});
+    sumValueInput?.addEventListener('change', () => {
+        // Ensure sumValueInput exists and is not null before parsing
+        if (sumValueInput) {
+            viewer.setSumValue(parseInt(sumValueInput.value));
+        }
+    });
 
-sumValueInput.addEventListener('change', () => {
-    viewer.setSumValue(parseInt(sumValueInput.value));
-});
 
-// Step right button
-const stepRightButton = document.getElementById('stepRight') as HTMLButtonElement;
-stepRightButton.addEventListener('click', () => {
-    // TODO: Implement step right functionality
-    console.log('Step right clicked');
-});
+    // Step right button
+    stepRightButton?.addEventListener('click', () => {
+        // TODO: Implement step right functionality
+        console.log('Step right clicked');
+    });
 
-// Camera reset
-const resetCameraButton = document.getElementById('resetCamera') as HTMLButtonElement;
-resetCameraButton?.addEventListener('click', () => {
-    viewer.resize(); // Consider if you need a more specific reset
-});
+    // Camera reset
+    resetCameraButton?.addEventListener('click', () => {
+        viewer.resize(); // Consider if you need a more specific reset
+    });
 
-// Handle window resize
-window.addEventListener('resize', () => {
-    viewer.resize();
-});
+    // Center Slice button
+    centerSliceButton?.addEventListener('click', () => {
+        if(xSlider && ySlider && zSlider && maxSliceIndices) {
+            const centerPositions = {
+                yz: Math.floor(maxSliceIndices.yz / 2),
+                xz: Math.floor(maxSliceIndices.xz / 2),
+                xy: Math.floor(maxSliceIndices.xy / 2)
+            };
+            xSlider.value = centerPositions.yz.toString();
+            ySlider.value = centerPositions.xz.toString();
+            zSlider.value = centerPositions.xy.toString();
+            // Trigger slice update
+            viewer.setSliceIndex('yz', centerPositions.yz);
+            viewer.setSliceIndex('xz', centerPositions.xz);
+            viewer.setSliceIndex('xy', centerPositions.xy);
+        }
+    });
 
-// Make sure they also use the correct slider references if needed
-xSlider?.addEventListener('input', () => {
-    viewer.setSliceIndex('yz', parseInt(xSlider.value));
-});
 
-ySlider?.addEventListener('input', () => {
-    viewer.setSliceIndex('xz', parseInt(ySlider.value));
-});
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        viewer.resize();
+    });
 
-zSlider?.addEventListener('input', () => {
-    viewer.setSliceIndex('xy', parseInt(zSlider.value));
-}); 
+    // Slice Sliders
+    xSlider?.addEventListener('input', () => {
+        console.log(`xSlider input: ${xSlider.value}`);
+        viewer.setSliceIndex('yz', parseInt(xSlider.value));
+    });
+
+    ySlider?.addEventListener('input', () => {
+        console.log(`ySlider input: ${ySlider.value}`);
+        viewer.setSliceIndex('xz', parseInt(ySlider.value));
+    });
+
+    zSlider?.addEventListener('input', () => {
+        console.log(`zSlider input: ${zSlider.value}`);
+        viewer.setSliceIndex('xy', parseInt(zSlider.value));
+    });
+
+    // --- Start the initialization ---
+    initializeViewer();
+
+}); // End of DOMContentLoaded listener 
